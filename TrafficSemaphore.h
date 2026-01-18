@@ -1,6 +1,7 @@
-#ifndef SEMAPHORE_H
-#define SEMAPHORE_H
+#ifndef TRAFFICSEMAPHORE_H
+#define TRAFFICSEMAPHORE_H
 
+#include <Arduino.h>
 #include "Button.h"
 
 enum State {
@@ -9,15 +10,15 @@ enum State {
   YELLOW
 };
 
-class Semaphore {
+class TrafficSemaphore {
 private:
   int redPin;
   int yellowPin;
   int greenPin;
+  Button pedestrianButton;
 
 public:
-  Semaphore(int red, int yellow, int green, Button b1);
-  Button pedestrianButton;
+  TrafficSemaphore(int red, int yellow, int green, Button& b1);
   void initialize();
   void setGreen();
   void setYellow();

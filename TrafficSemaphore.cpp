@@ -1,7 +1,11 @@
-#include <Arduino.h>
-#include "Semaphore.h"
+#include "TrafficSemaphore.h"
 
-Semaphore::Semaphore(int red, int yellow, int green, Button b1) : pedestrianButton(b1) {
+TrafficSemaphore::TrafficSemaphore(
+  int red,
+  int yellow,
+  int green,
+  Button& b1)
+  : pedestrianButton(b1) {
   redPin = red;
   yellowPin = yellow;
   greenPin = green;
@@ -13,25 +17,25 @@ Semaphore::Semaphore(int red, int yellow, int green, Button b1) : pedestrianButt
   initialize();
 }
 
-void Semaphore::initialize() {
+void TrafficSemaphore::initialize() {
   digitalWrite(redPin, LOW);
   digitalWrite(yellowPin, LOW);
   digitalWrite(greenPin, LOW);
 }
 
-void Semaphore::setGreen() {
+void TrafficSemaphore::setGreen() {
   digitalWrite(redPin, LOW);
   digitalWrite(yellowPin, LOW);
   digitalWrite(greenPin, HIGH);
 }
 
-void Semaphore::setYellow() {
+void TrafficSemaphore::setYellow() {
   digitalWrite(greenPin, LOW);
   digitalWrite(redPin, LOW);
   digitalWrite(yellowPin, HIGH);
 }
 
-void Semaphore::setRed() {
+void TrafficSemaphore::setRed() {
   digitalWrite(yellowPin, LOW);
   digitalWrite(greenPin, LOW);
   digitalWrite(redPin, HIGH);
