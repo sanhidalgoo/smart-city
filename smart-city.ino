@@ -2,6 +2,7 @@
 #include <LiquidCrystal_I2C.h>
 #include "Button.h"
 #include "TrafficSemaphore.h"
+#include "Street.h"
 #include "CO2Sensor.h"
 
 // I/O pin labeling
@@ -24,21 +25,33 @@
 #define LY2 15
 #define LG2 16
 
-#define GREEN_TIME1 5500
-#define YELLOW_TIME1 2000
-#define RED_TIME1 6000
-#define GREEN_TIME2 5500
-#define YELLOW_TIME2 2000
-#define RED_TIME2 6000
+
+// -------------------------------------------------------------- //
+//  STATE TIME VARIABLES
+
+#define GREEN_TIME1 5500       // Green time for light 1
+#define YELLOW_TIME1 2000       // Yellow time for light 1
+#define RED_TIME1 6000         // Red time for light 1
+#define GREEN_TIME2 5500       // Green time for light 2
+#define YELLOW_TIME2 2000       // Yellow time for light 2
+#define RED_TIME2 6000         // Red time for light 2
 #define PEDESTRIAN_DEBOUNCE 500
 #define DEBOUNCE_DELAY 500
 #define CO2_THRESHOLD 600
 #define LCD_UPDATE_INTERVAL 500
 
+// Add these flags at the top with your other variables
+bool extraGreen1 = false;
+bool extraGreen2 = false;
+
+// ------------------------------------------------------------- //
+
 Button button1(P2, DEBOUNCE_DELAY);
 Button button2(P1, DEBOUNCE_DELAY);
-TrafficSemaphore light1(LR1, LY1, LG1, button1);
-TrafficSemaphore light2(LR2, LY2, LG2, button2);
+TrafficSemaphore light1(LR1, LY1, LG1, button1);  // Semáforo 1
+TrafficSemaphore light2(LR2, LY2, LG2, button2);  // Semáforo 2
+Street street1(CNY1, CNY2, CNY3, 7000);           // Street 1
+Street street2(CNY4, CNY5, CNY6, 7000);           // Street 2
 CO2Sensor co2Sensor(CO2_PIN, CO2_THRESHOLD);
 
 LiquidCrystal_I2C lcd(0x27, 16, 4);
@@ -59,13 +72,13 @@ bool lastCO2State = false;
 
 void updateLCD() {
   bool highCO2 = co2Sensor.isHigh();
-  
+
   // Solo actualizar si cambió el estado
   if (highCO2 == lastCO2State) return;
-  
+
   lastCO2State = highCO2;
   lcd.clear();
-  
+
   if (highCO2) {
     lcd.setCursor(0, 0);
     lcd.print("!! ALERTA CO2 !!");
@@ -90,6 +103,8 @@ void setup() {
   light1.setGreen();
   light2.initialize();
   light2.setRed();
+  street1.reset();
+  street2.reset();
   Serial.begin(9600);
 
   lcd.init();
@@ -97,7 +112,7 @@ void setup() {
   lcd.setCursor(0, 0);
 
   co2Sensor.enableSimulation(15, 800);
-  
+
   delay(1000);
   lcd.setCursor(0, 0);
   lcd.print("CO2: concentracion");
@@ -116,11 +131,15 @@ void loop() {
   if (currentMillis - lastLCDUpdate >= LCD_UPDATE_INTERVAL) {
     lastLCDUpdate = currentMillis;
     updateLCD();
-    
+
     Serial.print("CO2: ");
     Serial.print(co2Sensor.getLevel());
     Serial.println(co2Sensor.isHigh() ? " - ALTO!" : " - Normal");
   }
+
+  // Identify critical traffic in each street
+  bool traffic1 = street1.hasCriticalTraffic();
+  bool traffic2 = street2.hasCriticalTraffic();
 
   if (pedestrianDebounce && (currentMillis - previousMillis >= PEDESTRIAN_DEBOUNCE)) pedestrianDebounce = false;
 
@@ -133,6 +152,12 @@ void loop() {
     button1.reset();
     button2.reset();
     pedestrianDebounce = true;
+  } else if (traffic1 && (currentState == RED1_GREEN2 || currentState == RED1_YELLOW2)) {
+      extraGreen1 = true;
+      if (currentState == RED1_GREEN2) stateDuration = 0; // Force Light 2 to Yellow immediately
+  } else if (traffic2 && (currentState == GREEN1_RED2 || currentState == YELLOW1_RED2)) {
+      extraGreen2 = true;
+      if (currentState == GREEN1_RED2) stateDuration = 0; // Force Light 1 to Yellow immediately
   }
 
   if (currentMillis - previousMillis >= stateDuration) {
@@ -150,7 +175,14 @@ void loop() {
         light1.setRed();
         light2.setGreen();
         currentState = RED1_GREEN2;
-        stateDuration = GREEN_TIME2;
+
+        if (extraGreen2) {
+            stateDuration = GREEN_TIME2 * 4; // 4x duration to clear traffic
+            extraGreen2 = false;            // Reset flag
+            Serial.println("EXTENDED GREEN ACTIVE FOR STREET 2");
+        } else {
+            stateDuration = GREEN_TIME2;
+        }
         break;
 
       case RED1_GREEN2:
@@ -164,7 +196,15 @@ void loop() {
         light1.setGreen();
         light2.setRed();
         currentState = GREEN1_RED2;
-        stateDuration = GREEN_TIME1;
+
+        // CHECK FOR MULTIPLIER
+        if (extraGreen1) {
+            stateDuration = GREEN_TIME1 * 4; // 4x duration to clear traffic
+            extraGreen1 = false;            // Reset flag
+            Serial.println("EXTENDED GREEN ACTIVE FOR STREET 1");
+        } else {
+            stateDuration = GREEN_TIME1;
+        }
         break;
     }
   }
