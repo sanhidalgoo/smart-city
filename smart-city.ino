@@ -1,25 +1,29 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include "Button.h"
 #include "TrafficSemaphore.h"
 #include "Street.h"
+#include "CO2Sensor.h"
 
 // I/O pin labeling
-#define LDR1 12 // LDR Light sensor from traffic light 1 connected in pin A0
-#define LDR2 13 // LDR Light sensor from traffic light 2 connected in pin A1
-#define CO2 14  // CO2 sensor connected in pin A3
-#define P1 1    // Traffic light 1 button connected in pin 1
-#define P2 2    // Traffic light 2 button connected in pin 2
-#define CNY1 42 // Infrared sensor 1 in traffic light 1 connected in pin 42
-#define CNY2 41 // Infrared sensor 2 in traffic light 1 connected in pin 41
-#define CNY3 40 // Infrared sensor 3 in traffic light 1 connected in pin 40
-#define CNY4 39 // Infrared sensor 4 in traffic light 2 connected in pin 39
-#define CNY5 38 // Infrared sensor 5 in traffic light 2 connected in pin 38
-#define CNY6 37 // Infrared sensor 6 in traffic light 2 connected in pin 37
-#define LR1 5   // Red traffic light 1 connected in pin 5
-#define LY1 4   // Yellow traffic light 1 connected in pin 4
-#define LG1 6   // Green traffic light 1 connected in pin 6
-#define LR2 7   // Red traffic light 2 connected in pin 7
-#define LY2 15  // Yellow traffic light 2 connected in pin 15
-#define LG2 16  // Green traffic light 2 connected in pin 16
+#define LDR1 12
+#define LDR2 13
+#define CO2_PIN 14
+#define CO2 14
+#define P1 1
+#define P2 2
+#define CNY1 42
+#define CNY2 41
+#define CNY3 40
+#define CNY4 39
+#define CNY5 38
+#define CNY6 37
+#define LR1 5
+#define LY1 4
+#define LG1 6
+#define LR2 7
+#define LY2 15
+#define LG2 16
 
 
 // -------------------------------------------------------------- //
@@ -32,8 +36,9 @@
 #define YELLOW_TIME2 2000       // Yellow time for light 2
 #define RED_TIME2 6000         // Red time for light 2
 #define PEDESTRIAN_DEBOUNCE 500
-
-#define DEBOUNCE_DELAY 500  // Debounce delay in milliseconds
+#define DEBOUNCE_DELAY 500
+#define CO2_THRESHOLD 600
+#define LCD_UPDATE_INTERVAL 500
 
 // Add these flags at the top with your other variables
 bool extraGreen1 = false;
@@ -47,6 +52,9 @@ TrafficSemaphore light1(LR1, LY1, LG1, button1);  // Semáforo 1
 TrafficSemaphore light2(LR2, LY2, LG2, button2);  // Semáforo 2
 Street street1(CNY1, CNY2, CNY3, 7000);           // Street 1
 Street street2(CNY4, CNY5, CNY6, 7000);           // Street 2
+CO2Sensor co2Sensor(CO2_PIN, CO2_THRESHOLD);
+
+LiquidCrystal_I2C lcd(0x27, 16, 4);
 
 enum SemaphoreState {
   GREEN1_RED2,
@@ -58,13 +66,38 @@ enum SemaphoreState {
 SemaphoreState currentState;
 unsigned long previousMillis = 0;
 unsigned long stateDuration = 0;
+unsigned long lastLCDUpdate = 0;
 bool pedestrianDebounce = false;
+bool lastCO2State = false;
+
+void updateLCD() {
+  bool highCO2 = co2Sensor.isHigh();
+
+  // Solo actualizar si cambió el estado
+  if (highCO2 == lastCO2State) return;
+
+  lastCO2State = highCO2;
+  lcd.clear();
+
+  if (highCO2) {
+    lcd.setCursor(0, 0);
+    lcd.print("!! ALERTA CO2 !!");
+    lcd.setCursor(0, 1);
+    lcd.print("Tome rutas");
+    lcd.setCursor(0, 2);
+    lcd.print("alternas");
+  } else {
+    lcd.setCursor(0, 0);
+    lcd.print("CO2: concentracion");
+    lcd.setCursor(0, 1);
+    lcd.print("normal");
+  }
+}
 
 void setup() {
-  // Inicializa la máquina de estados
   currentState = GREEN1_RED2;
   previousMillis = millis();
-  stateDuration = GREEN_TIME1;  // Initial green time for light 1
+  stateDuration = GREEN_TIME1;
 
   light1.initialize();
   light1.setGreen();
@@ -73,25 +106,46 @@ void setup() {
   street1.reset();
   street2.reset();
   Serial.begin(9600);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+
+  co2Sensor.enableSimulation(15, 800);
+
+  delay(1000);
+  lcd.setCursor(0, 0);
+  lcd.print("CO2: concentracion");
+  lcd.setCursor(0, 1);
+  lcd.print("normal");
+  updateLCD();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Update button states
   button1.update();
   button2.update();
+  co2Sensor.update();
+
+  if (currentMillis - lastLCDUpdate >= LCD_UPDATE_INTERVAL) {
+    lastLCDUpdate = currentMillis;
+    updateLCD();
+
+    Serial.print("CO2: ");
+    Serial.print(co2Sensor.getLevel());
+    Serial.println(co2Sensor.isHigh() ? " - ALTO!" : " - Normal");
+  }
 
   // Identify critical traffic in each street
   bool traffic1 = street1.hasCriticalTraffic();
   bool traffic2 = street2.hasCriticalTraffic();
-  
-  if (pedestrianDebounce && (currentMillis - previousMillis >= PEDESTRIAN_DEBOUNCE)) pedestrianDebounce = false;
-  // Handle button presses to transition faster
-  if (!pedestrianDebounce && (button1.wasPressed() || button2.wasPressed())) {
 
+  if (pedestrianDebounce && (currentMillis - previousMillis >= PEDESTRIAN_DEBOUNCE)) pedestrianDebounce = false;
+
+  if (!pedestrianDebounce && (button1.wasPressed() || button2.wasPressed())) {
     if (currentState == GREEN1_RED2 || currentState == RED1_GREEN2)
-      stateDuration = 0;  // Transition to yellow immediately
+      stateDuration = 0;
 
     Serial.println(currentState);
     Serial.println(stateDuration);
@@ -99,14 +153,13 @@ void loop() {
     button2.reset();
     pedestrianDebounce = true;
   } else if (traffic1 && (currentState == RED1_GREEN2 || currentState == RED1_YELLOW2)) {
-      extraGreen1 = true; 
+      extraGreen1 = true;
       if (currentState == RED1_GREEN2) stateDuration = 0; // Force Light 2 to Yellow immediately
   } else if (traffic2 && (currentState == GREEN1_RED2 || currentState == YELLOW1_RED2)) {
       extraGreen2 = true;
       if (currentState == GREEN1_RED2) stateDuration = 0; // Force Light 1 to Yellow immediately
   }
 
-  // Update the state machine
   if (currentMillis - previousMillis >= stateDuration) {
     previousMillis = currentMillis;
 
@@ -143,7 +196,7 @@ void loop() {
         light1.setGreen();
         light2.setRed();
         currentState = GREEN1_RED2;
-        
+
         // CHECK FOR MULTIPLIER
         if (extraGreen1) {
             stateDuration = GREEN_TIME1 * 4; // 4x duration to clear traffic
