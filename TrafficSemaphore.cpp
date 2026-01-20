@@ -40,3 +40,9 @@ void TrafficSemaphore::setRed() {
   digitalWrite(greenPin, LOW);
   digitalWrite(redPin, HIGH);
 }
+
+void TrafficSemaphore::setBlack() {
+  digitalWrite(yellowPin, LOW);
+  digitalWrite(greenPin, LOW);
+  digitalWrite(redPin, LOW);
+}
