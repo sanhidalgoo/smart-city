@@ -143,10 +143,6 @@ void loop() {
   if (currentMillis - lastLCDUpdate >= LCD_UPDATE_INTERVAL) {
     lastLCDUpdate = currentMillis;
     updateLCD();
-
-    Serial.print("CO2: ");
-    Serial.print(co2Sensor.getLevel());
-    Serial.println(co2Sensor.isHigh() ? " - ALTO!" : " - Normal");
   }
 
   // Identify critical traffic in each street
@@ -165,16 +161,11 @@ void loop() {
     button1.reset();
     button2.reset();
     pedestrianDebounce = true;
-  } else if (traffic1 && (currentState == RED1_GREEN2 || currentState == RED1_YELLOW2)) {
-      extraGreen1 = true;
-      if (currentState == RED1_GREEN2) stateDuration = 0; // Force Light 2 to Yellow immediately
-  } else if (traffic2 && (currentState == GREEN1_RED2 || currentState == YELLOW1_RED2)) {
-      extraGreen2 = true;
-      if (currentState == GREEN1_RED2) stateDuration = 0; // Force Light 1 to Yellow immediately
-  }
+  } 
 
-  if (isLate && currentState != YELLOW1_YELLOW2) {
+  if (isLate && currentState != YELLOW1_YELLOW2 && !traffic1 && !traffic2) {
     setNextState(YELLOW1_YELLOW2, 0);
+    Serial.println("low traffic and in the night moving to yellow");
   }
 
   if (currentMillis - previousMillis >= stateDuration) {
@@ -227,10 +218,15 @@ void loop() {
         isBlinkOn = !isBlinkOn;
         stateDuration = YELLOW_BLINK_TIME;
 
-        if (!isLate) {
+        if((isLate && traffic1) || !isLate) {
+          setNextState(RED1_GREEN2, 0);
+          isBlinkOn = false;
+          Serial.println("traffic in line 1 move green1_red2");
+        } else if (isLate && traffic2) {
           setNextState(GREEN1_RED2, 0);
           isBlinkOn = false;
-        }
+          Serial.println("traffic in line 2 move green2_red1");
+        } 
         break;
     }
   }
