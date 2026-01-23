@@ -1,10 +1,24 @@
 #include <Wire.h>
+#include <Firebase_ESP_Client.h>
 #include <LiquidCrystal_I2C.h>
 #include "Button.h"
 #include "TrafficSemaphore.h"
 #include "Street.h"
 #include "CO2Sensor.h"
 #include "LightSensors.h"
+#include <addons/TokenHelper.h>
+#include <addons/RTDBHelper.h>
+
+// WIFI setup
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+#define API_KEY ""
+#define DATABASE_URL "" 
+#define USER_EMAIL ""
+#define USER_PASSWORD ""
+
+// NTP
+#include <time.h>
 
 // I/O pin labeling
 #define LDR1 12
@@ -26,7 +40,6 @@
 #define LY2 15
 #define LG2 16
 
-
 // -------------------------------------------------------------- //
 //  STATE TIME VARIABLES
 
@@ -38,13 +51,13 @@
 #define RED_TIME2 6000         // Red time for light 2
 #define PEDESTRIAN_DEBOUNCE 500
 #define DEBOUNCE_DELAY 500
-#define CO2_THRESHOLD 600
 #define LCD_UPDATE_INTERVAL 500
 #define YELLOW_BLINK_TIME 1000
+#define BASE_C02_THRESHOLD 400
 
-// Add these flags at the top with your other variables
 bool extraGreen1 = false;
 bool extraGreen2 = false;
+int co2Threshold = BASE_C02_THRESHOLD;
 
 // ------------------------------------------------------------- //
 
@@ -54,10 +67,16 @@ TrafficSemaphore light1(LR1, LY1, LG1, button1);  // Semáforo 1
 TrafficSemaphore light2(LR2, LY2, LG2, button2);  // Semáforo 2
 Street street1(CNY1, CNY2, CNY3, 7000);           // Street 1
 Street street2(CNY4, CNY5, CNY6, 7000);           // Street 2
-CO2Sensor co2Sensor(CO2_PIN, CO2_THRESHOLD);
+CO2Sensor co2Sensor(CO2_PIN);
 LightSensors lightSensors(LDR1, LDR2, 2000);
 
 LiquidCrystal_I2C lcd(0x27, 16, 4);
+
+// NTP configuration
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = -18000;  // UTC-5 (Colombia)
+const int daylightOffset_sec = 0;
+unsigned long sendDataPrevMillis = 0;
 
 enum SemaphoreState {
   GREEN1_RED2,
@@ -75,10 +94,13 @@ bool pedestrianDebounce = false;
 bool lastCO2State = false;
 bool isBlinkOn = false;
 
-void updateLCD() {
-  bool highCO2 = co2Sensor.isHigh();
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
 
-  // Solo actualizar si cambió el estado
+void updateLCD() {
+  bool highCO2 = co2Sensor.isHigh(co2Threshold);
+
   if (highCO2 == lastCO2State) return;
 
   lastCO2State = highCO2;
@@ -86,22 +108,57 @@ void updateLCD() {
 
   if (highCO2) {
     lcd.setCursor(0, 0);
-    lcd.print("!! ALERTA CO2 !!");
+    lcd.print(getTimestamp());
     lcd.setCursor(0, 1);
-    lcd.print("Tome rutas");
+    lcd.print("!! ALERTA CO2 !!");
     lcd.setCursor(0, 2);
+    lcd.print("Tome rutas");
+    lcd.setCursor(0, 3);
     lcd.print("alternas");
   } else {
     lcd.setCursor(0, 0);
-    lcd.print("CO2: concentracion");
+    lcd.print(getTimestamp());
     lcd.setCursor(0, 1);
+    lcd.print("CO2: concentracion");
+    lcd.setCursor(0, 2);
     lcd.print("normal");
   }
+}
+
+void sendData() {
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 10000 || sendDataPrevMillis == 0)) {
+    sendDataPrevMillis = millis();
+
+    float co2Value = co2Sensor.getLevel();
+    String timestamp = getTimestamp();
+
+    Serial.printf("CO2: %.2f ppm - Fecha: %s\n", co2Value, timestamp.c_str());
+
+    FirebaseJson json;
+    json.set("co2", co2Value);
+    json.set("timestamp", timestamp);
+    json.set("unix_time", (int)time(nullptr));  // timestamp Unix opcional
+    
+    Serial.printf("History: %s\n", 
+      Firebase.RTDB.pushJSON(&fbdo, F("/co2/history"), &json) ? "ok" : fbdo.errorReason().c_str());
+  }  
 }
 
 void setNextState(SemaphoreState nuevoEstado, unsigned long duracion) {
   currentState = nuevoEstado;
   stateDuration = duracion;
+}
+
+String getTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return "error";
+  }
+  
+  char buffer[25];
+  // Formato: 2025-01-22 14:30:45
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(buffer);
 }
 
 void setup() {
@@ -121,8 +178,33 @@ void setup() {
   lcd.backlight();
   lcd.setCursor(0, 0);
 
-  co2Sensor.enableSimulation(15, 800);
+  // WIFI connection
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
 
+  config.api_key = API_KEY;
+
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+  config.database_url = DATABASE_URL;
+  config.token_status_callback = tokenStatusCallback; 
+  Firebase.reconnectNetwork(true);
+  fbdo.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
+  fbdo.setResponseSize(2048);
+  Firebase.begin(&config, &auth);
+  Firebase.setDoubleDigits(5);
+  config.timeout.serverResponse = 10 * 1000;
+
+  co2Sensor.enableSimulation(15, 800);
   delay(1000);
   lcd.setCursor(0, 0);
   lcd.print("CO2: concentracion");
@@ -131,11 +213,23 @@ void setup() {
   updateLCD();
 
   lightSensors.start();
+
+  // NTP sync
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  Serial.println("Syncing with NTP...");
+  
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo)) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("NTP in sync!");
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
+  sendData();
   button1.update();
   button2.update();
   co2Sensor.update();
@@ -143,10 +237,6 @@ void loop() {
   if (currentMillis - lastLCDUpdate >= LCD_UPDATE_INTERVAL) {
     lastLCDUpdate = currentMillis;
     updateLCD();
-
-    Serial.print("CO2: ");
-    Serial.print(co2Sensor.getLevel());
-    Serial.println(co2Sensor.isHigh() ? " - ALTO!" : " - Normal");
   }
 
   // Identify critical traffic in each street
@@ -173,8 +263,15 @@ void loop() {
       if (currentState == GREEN1_RED2) stateDuration = 0; // Force Light 1 to Yellow immediately
   }
 
-  if (isLate && currentState != YELLOW1_YELLOW2) {
-    setNextState(YELLOW1_YELLOW2, 0);
+  if (isLate){
+    co2Threshold = 700;
+    if(co2Sensor.isHigh(co2Threshold) && (currentState == GREEN1_RED2 || currentState == YELLOW1_RED2)) {
+      Serial.println("Extending green time for semaphore 2 due to high CO2");
+      extraGreen2 = true; // Add more time to semaphore 2 green light (where tunnel is)
+      if (currentState == GREEN1_RED2) stateDuration = 0; // Force Light 1 to Yellow immediately
+    }
+  } else if (co2Threshold != BASE_C02_THRESHOLD) {
+    co2Threshold = BASE_C02_THRESHOLD;
   }
 
   if (currentMillis - previousMillis >= stateDuration) {

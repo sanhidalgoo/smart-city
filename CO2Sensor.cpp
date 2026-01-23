@@ -1,8 +1,7 @@
 #include "CO2Sensor.h"
 
-CO2Sensor::CO2Sensor(int pin, int threshold) {
+CO2Sensor::CO2Sensor(int pin) {
   this->pin = pin;
-  this->threshold = threshold;
   this->currentLevel = 300;
   this->lastUpdate = 0;
   this->updateInterval = 500;
@@ -33,7 +32,7 @@ void CO2Sensor::update() {
   }
 }
 
-bool CO2Sensor::isHigh() {
+bool CO2Sensor::isHigh(int threshold) {
   return currentLevel > threshold;
 }
 

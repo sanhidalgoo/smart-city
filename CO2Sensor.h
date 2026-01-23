@@ -7,7 +7,6 @@ class CO2Sensor {
 private:
   int pin;
   int currentLevel;
-  int threshold;
   unsigned long lastUpdate;
   unsigned long updateInterval;
   
@@ -17,10 +16,10 @@ private:
   int simulatedStep;
 
 public:
-  CO2Sensor(int pin, int threshold = 600);
+  CO2Sensor(int pin);
   
   void update();
-  bool isHigh();
+  bool isHigh(int threshold);
   int getLevel();
   
   // Simulación
