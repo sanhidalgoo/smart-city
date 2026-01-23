@@ -23,6 +23,7 @@ public:
   void setGreen();
   void setYellow();
   void setRed();
+  void setBlack();
 };
 
 #endif
