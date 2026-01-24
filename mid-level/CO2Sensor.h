@@ -9,7 +9,7 @@ private:
   int currentLevel;
   unsigned long lastUpdate;
   unsigned long updateInterval;
-  
+
   // Simulación
   bool simulationMode;
   int simulatedDirection;
@@ -17,11 +17,11 @@ private:
 
 public:
   CO2Sensor(int pin);
-  
+
   void update();
   bool isHigh(int threshold);
   int getLevel();
-  
+
   // Simulación
   void enableSimulation(int step = 10, unsigned long interval = 500);
   void setSimulatedLevel(int level);

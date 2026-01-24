@@ -13,7 +13,7 @@
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
 #define API_KEY ""
-#define DATABASE_URL "" 
+#define DATABASE_URL ""
 #define USER_EMAIL ""
 #define USER_PASSWORD ""
 
@@ -139,10 +139,10 @@ void sendData() {
     json.set("co2", co2Value);
     json.set("timestamp", timestamp);
     json.set("unix_time", (int)time(nullptr));  // timestamp Unix opcional
-    
-    Serial.printf("History: %s\n", 
+
+    Serial.printf("History: %s\n",
       Firebase.RTDB.pushJSON(&fbdo, F("/co2/history"), &json) ? "ok" : fbdo.errorReason().c_str());
-  }  
+  }
 }
 
 void setNextState(SemaphoreState nuevoEstado, unsigned long duracion) {
@@ -155,7 +155,7 @@ String getTimestamp() {
   if (!getLocalTime(&timeinfo)) {
     return "error";
   }
-  
+
   char buffer[25];
   // Formato: 2025-01-22 14:30:45
   strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
@@ -197,7 +197,7 @@ void setup() {
   auth.user.email = USER_EMAIL;
   auth.user.password = USER_PASSWORD;
   config.database_url = DATABASE_URL;
-  config.token_status_callback = tokenStatusCallback; 
+  config.token_status_callback = tokenStatusCallback;
   Firebase.reconnectNetwork(true);
   fbdo.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 1024 /* Tx buffer size in bytes from 512 - 16384 */);
   fbdo.setResponseSize(2048);
@@ -218,7 +218,7 @@ void setup() {
   // NTP sync
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   Serial.println("Syncing with NTP...");
-  
+
   struct tm timeinfo;
   while (!getLocalTime(&timeinfo)) {
     Serial.print(".");
@@ -284,7 +284,7 @@ void loop() {
       case GREEN1_RED2:
         light1.setYellow();
         light2.setRed();
-        
+
         setNextState(YELLOW1_RED2, YELLOW_TIME1);
         break;
 
@@ -310,7 +310,7 @@ void loop() {
         light2.setRed();
 
         unsigned long tiempoVerde1 = extraGreen1 ? (GREEN_TIME1 * 4) : GREEN_TIME1;
-        extraGreen1 = false; 
+        extraGreen1 = false;
 
         setNextState(GREEN1_RED2, tiempoVerde1);
         break;
