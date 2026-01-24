@@ -49,8 +49,8 @@
 #define GREEN_TIME2 5500       // Green time for light 2
 #define YELLOW_TIME2 2000       // Yellow time for light 2
 #define RED_TIME2 6000         // Red time for light 2
-#define PEDESTRIAN_DEBOUNCE 500
-#define DEBOUNCE_DELAY 500
+#define BASE_PEDESTRIAN_DEBOUNCE_DELAY 500
+#define BASE_DEBOUNCE_DELAY 500
 #define LCD_UPDATE_INTERVAL 500
 #define YELLOW_BLINK_TIME 1000
 #define BASE_C02_THRESHOLD 400
@@ -58,11 +58,12 @@
 bool extraGreen1 = false;
 bool extraGreen2 = false;
 int co2Threshold = BASE_C02_THRESHOLD;
+int pedestrianBounceDelay = BASE_PEDESTRIAN_DEBOUNCE_DELAY;
 
 // ------------------------------------------------------------- //
 
-Button button1(P2, DEBOUNCE_DELAY);
-Button button2(P1, DEBOUNCE_DELAY);
+Button button1(P2, BASE_DEBOUNCE_DELAY);
+Button button2(P1, BASE_DEBOUNCE_DELAY);
 TrafficSemaphore light1(LR1, LY1, LG1, button1);  // Semáforo 1
 TrafficSemaphore light2(LR2, LY2, LG2, button2);  // Semáforo 2
 Street street1(CNY1, CNY2, CNY3, 7000);           // Street 1
@@ -244,7 +245,9 @@ void loop() {
   bool traffic2 = street2.hasCriticalTraffic();
   bool isLate = lightSensors.isDark();
 
-  if (pedestrianDebounce && (currentMillis - previousMillis >= PEDESTRIAN_DEBOUNCE)) pedestrianDebounce = false;
+  pedestrianBounceDelay = isLate ? BASE_PEDESTRIAN_DEBOUNCE_DELAY : BASE_PEDESTRIAN_DEBOUNCE_DELAY*8; //BASE_DEBOUNCE_DELAY * 2;
+
+  if (pedestrianDebounce && (currentMillis - previousMillis >= pedestrianBounceDelay)) pedestrianDebounce = false;
 
   if (!pedestrianDebounce && (button1.wasPressed() || button2.wasPressed())) {
     if (currentState == GREEN1_RED2 || currentState == RED1_GREEN2)

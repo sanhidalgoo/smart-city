@@ -15,6 +15,7 @@ public:
   void update();
   bool wasPressed();
   void reset();
+  void updateDebounceDelay(unsigned long debounceDelay);
 };
 
 #endif

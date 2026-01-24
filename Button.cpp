@@ -26,3 +26,7 @@ bool Button::wasPressed() {
 void Button::reset() {
   wasPressedInCycle = false;
 }
+
+void Button::updateDebounceDelay(unsigned long debounceDelay){
+  this->debounceDelay = debounceDelay;
+}
