@@ -2,7 +2,7 @@ import serial
 import time
 import json
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, db as firebase_db
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
@@ -13,12 +13,14 @@ load_dotenv()
 arduino_port = "/dev/ttyUSB0"  # Reemplaza con el puerto serial de tu Arduino
 baud_rate = 9600
 
-# Carga tus credenciales de Firebase
+# Carga tus credenciales de Firebase Realtime Database
 cred = credentials.Certificate("./service_account.json")
-firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://test2-a0f86-default-rtdb.firebaseio.com/'
+})
 
-# Obtén una referencia a la base de datos Firestore
-db = firestore.client()
+# Referencia a la Realtime Database
+db = firebase_db.reference()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 generation_config = {
@@ -53,7 +55,7 @@ with open("./agent-prompt.md", "r") as file:
     system_instruction = file.read()
 
 model = genai.GenerativeModel(
-  model_name="gemini-1.5-pro-latest",
+  model_name="gemini-2.5-flash",
   safety_settings=safety_settings,
   generation_config=generation_config,
   system_instruction=system_instruction
@@ -70,8 +72,13 @@ def connect_serial():
             ser = serial.Serial(arduino_port, baud_rate, timeout=1)
             print("Serial connection established.")
             return ser
-        except serial.SerialException:
-            print("Failed to connect to serial. Retrying in 10 seconds...")
+        except serial.SerialException as e:
+            print(f"Failed to connect to serial port '{arduino_port}': {e}")
+            print("Make sure:")
+            print("  1. Arduino is connected via USB")
+            print("  2. The port is correct (check with: ls /dev/ttyUSB* /dev/ttyACM*)")
+            print("  3. You have permission (try: sudo chmod 666 /dev/ttyUSB0)")
+            print("Retrying in 10 seconds...")
             time.sleep(10)
 
 def read_arduino(ser):
@@ -97,8 +104,7 @@ def send_timings(timings: dict):
     ser.flush()
 
 def save_to_firebase(data):
-    doc_ref = db.collection("arduino_data").document()
-    doc_ref.set(data["data"])
+    db.child("arduino_data").push(data)
 
 try:
     ser = connect_serial()
@@ -107,10 +113,24 @@ try:
             sensor_data = read_arduino(ser)
             if sensor_data:
                 print(f"Received from Arduino: {sensor_data}")
-                response = chat_session.send_message(json.dumps(sensor_data)).text.replace("```json", "").replace("```", "")
-                save_to_firebase(sensor_data)
-                print(f"Response from Gemini: {response}")
-                send_timings(json.loads(response))
+                print(f"Sending to Gemini: {json.dumps(sensor_data)}")
+                response = chat_session.send_message(json.dumps(sensor_data)).text.replace("```json", "").replace("```", "").strip()
+                response_json = json.loads(response)
+
+                # Print the full response
+                print(f"Response from Gemini: {response_json}")
+
+                # Print the agent's reasoning
+                if "reasoning" in response_json:
+                    print(f"\n🤖 Agent reasoning: {response_json['reasoning']}\n")
+
+                # Save sensor data to Firebase (disabled for now)
+                # save_to_firebase(sensor_data)
+
+                # Send timings to Arduino
+                if "timings" in response_json:
+                    print(f"Sending timings to Arduino: {response_json['timings']}")
+                    send_timings(response_json["timings"])
             time.sleep(1)
         except Exception as e:
             print(f"An error occurred: {e}")
