@@ -39,6 +39,14 @@
 #define LY2 15
 #define LG2 16
 
+#define BASE_PEDESTRIAN_DEBOUNCE_DELAY 500
+#define BASE_DEBOUNCE_DELAY 500
+#define LCD_UPDATE_INTERVAL 500
+#define YELLOW_BLINK_TIME 1000
+#define BASE_C02_THRESHOLD 400
+#define SEND_DATA_INTERVAL 120000 // 2 minutes in milliseconds
+
+
 // -------------------------------------------------------------- //
 //  STATE TIME VARIABLES (can be updated by Python/Gemini)
 
@@ -46,12 +54,6 @@ unsigned long greenTime1 = 5500;    // Green time for light 1
 unsigned long yellowTime1 = 2000;   // Yellow time for light 1
 unsigned long greenTime2 = 5500;    // Green time for light 2
 unsigned long yellowTime2 = 2000;   // Yellow time for light 2
-
-#define BASE_PEDESTRIAN_DEBOUNCE_DELAY 500
-#define BASE_DEBOUNCE_DELAY 500
-#define LCD_UPDATE_INTERVAL 500
-#define YELLOW_BLINK_TIME 1000
-#define BASE_C02_THRESHOLD 400
 
 bool extraGreen1 = false;
 bool extraGreen2 = false;
@@ -76,7 +78,6 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -18000;  // UTC-5 (Colombia)
 const int daylightOffset_sec = 0;
 unsigned long sendDataPrevMillis = 0;
-#define SEND_DATA_INTERVAL 90000  // 5 minutes in milliseconds
 
 enum SemaphoreState {
   GREEN1_RED2,
