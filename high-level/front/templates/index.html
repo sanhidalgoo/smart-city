@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Traffic Controller Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+        th, td {
+            padding: 15px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        th {
+            background: rgba(0, 217, 255, 0.2);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-success { background: #00ff88; color: #1a1a2e; }
+        .badge-danger { background: #ff4757; color: #fff; }
+        .badge-warning { background: #ffa502; color: #1a1a2e; }
+        .co2-normal { color: #00ff88; }
+        .co2-high { color: #ffa502; }
+        .co2-critical { color: #ff4757; }
+        .timing {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 217, 255, 0.1);
+            padding: 3px 8px;
+            border-radius: 5px;
+        }
+        .reasoning {
+            max-width: 300px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .timestamp {
+            color: #a0a0a0;
+            font-size: 0.9rem;
+        }
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #a0a0a0;
+        }
+        .refresh-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 30px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            border: none;
+            border-radius: 25px;
+            color: #1a1a2e;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚦 Smart Traffic Controller Dashboard</h1>
+        
+        <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Data</button>
+        
+        <div class="table-container">
+            {% if records %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>CO2 (ppm)</th>
+                        <th>Traffic 1</th>
+                        <th>Traffic 2</th>
+                        <th>Night Mode</th>
+                        <th>Green T1</th>
+                        <th>Green T2</th>
+                        <th>Yellow T1</th>
+                        <th>Yellow T2</th>
+                        <th>AI Reasoning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td class="timestamp">{{ record.timestamp }}</td>
+                        <td>
+                            {% if record.co2 != 'N/A' %}
+                                {% if record.co2 < 400 %}
+                                    <span class="co2-normal">{{ record.co2 }}</span>
+                                {% elif record.co2 < 700 %}
+                                    <span class="co2-high">{{ record.co2 }}</span>
+                                {% else %}
+                                    <span class="co2-critical">{{ record.co2 }}</span>
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.critical_traffic1 %}
+                                <span class="badge badge-danger">Critical</span>
+                            {% else %}
+                                <span class="badge badge-success">Normal</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.critical_traffic2 %}
+                                <span class="badge badge-danger">Critical</span>
+                            {% else %}
+                                <span class="badge badge-success">Normal</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.isLate %}
+                                <span class="badge badge-warning">🌙 Night</span>
+                            {% else %}
+                                <span class="badge badge-success">☀️ Day</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="timing">{{ record.green_time1 }}ms</span></td>
+                        <td><span class="timing">{{ record.green_time2 }}ms</span></td>
+                        <td><span class="timing">{{ record.yellow_time1 }}ms</span></td>
+                        <td><span class="timing">{{ record.yellow_time2 }}ms</span></td>
+                        <td class="reasoning">{{ record.reasoning }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">
+                <h2>No data available</h2>
+                <p>Waiting for data from the traffic controller...</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

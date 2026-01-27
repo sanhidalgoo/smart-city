@@ -124,8 +124,12 @@ try:
                 if "reasoning" in response_json:
                     print(f"\n🤖 Agent reasoning: {response_json['reasoning']}\n")
 
-                # Save sensor data to Firebase (disabled for now)
-                # save_to_firebase(sensor_data)
+                # Save input and output to Firebase
+                firebase_data = {
+                    "input": sensor_data,
+                    "output": response_json
+                }
+                save_to_firebase(firebase_data)
 
                 # Send timings to Arduino
                 if "timings" in response_json:
