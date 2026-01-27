@@ -12,10 +12,6 @@
 // WIFI setup - commented out, Firebase handled by Python server
 #define WIFI_SSID "MHERLOP"
 #define WIFI_PASSWORD "hableloz77$&"
-// #define API_KEY "AIzaSyApZXs2NwDoKJyL4Vdk8yhQkfVdNmBPSyE"
-// #define DATABASE_URL "https://test2-a0f86-default-rtdb.firebaseio.com/"
-// #define USER_EMAIL "manuhl202@gmail.com"
-// #define USER_PASSWORD "rSxjrfK7LS7J"
 
 
 // NTP for timestamp
