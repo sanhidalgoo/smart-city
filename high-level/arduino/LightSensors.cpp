@@ -13,6 +13,10 @@ void LightSensors::start() {
 bool LightSensors::isDark() {
   int sensor1 = analogRead(pin1);
   int sensor2 = analogRead(pin2);
+  // Serial.print("Light 1: ");
+  // Serial.println(sensor1);
+  // Serial.print("Light 2: ");
+  // Serial.println(sensor2);
   if (sensor1 < 300 && sensor2 < 300) {
     return true;
   }
